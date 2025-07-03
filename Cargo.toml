@@ -1,0 +1,25 @@
+[workspace]
+members = ["uname", "minish", "ministd"]
+resolver = "3"
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+
+[workspace.dependencies]
+bytemuck = { version = "1.23.0", features = ["derive", "latest_stable_rust"] }
+error-repr = { version = "0.1.0", features = ["alloc", "error-track_caller"] }
+lilium-sys = { git = "https://github.com/LiliumOS/lilium-sys.git", version = "0.1.0", default-features = false, features = [
+    "alloc",
+    "core-subsys",
+    "error-enum",
+    "bytemuck",
+    "libc",
+    "link-usi",
+    "api",
+    "sync-mutex",
+] }
+talc = "4.4.2"
+memchr = { version = "2.7.4", default-features = false, features = ["alloc"] }
+ministd = { path = "ministd" }
+genio = { version = "0.2.1", default-features = false }

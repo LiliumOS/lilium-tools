@@ -1,0 +1,12 @@
+[package]
+name = "ministd"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bytemuck.workspace = true
+error-repr.workspace = true
+lilium-sys.workspace = true
+memchr = { version = "2.7.4", default-features = false, features = ["alloc"] }
+genio.workspace = true
+talc.workspace = true

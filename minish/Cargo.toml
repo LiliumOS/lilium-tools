@@ -1,0 +1,11 @@
+[package]
+name = "minish"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+genio.workspace = true
+bytemuck.workspace = true
+error-repr.workspace = true
+lilium-sys.workspace = true
+ministd.workspace = true
