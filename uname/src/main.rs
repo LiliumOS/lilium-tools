@@ -1,11 +1,29 @@
 #![no_std]
 #![no_main]
 
-use alloc::{fmt::format, string::String, vec::Vec};
+use alloc::{
+    fmt::format,
+    format,
+    string::{String, ToString},
+    vec::Vec,
+};
+use lilium_sys::sys::{
+    error::INSUFFICIENT_LENGTH,
+    info::{
+        GetSystemInfo, SysInfoRequest, SysInfoRequestArchInfo, SysInfoRequestComputerName,
+        SysInfoRequestKernelVendor, SysInfoRequestOsVersion,
+        arch_info::{
+            ARCH_TYPE_AARCH64, ARCH_TYPE_ARM32, ARCH_TYPE_CLEVER_ISA, ARCH_TYPE_RISCV32,
+            ARCH_TYPE_RISCV64, ARCH_TYPE_X86_64, ARCH_TYPE_X86_IA_32,
+        },
+    },
+    kstr::{KSlice, KStrPtr},
+};
 use ministd::{
     eprintln,
+    helpers::get_many_mut,
     io::{Error, ErrorKind},
-    println,
+    print, println,
 };
 
 extern crate alloc;
@@ -44,7 +62,7 @@ fn main() -> Result<i32, Error> {
     for arg in args {
         match arg {
             "--version" => {
-                println!("uname {}", std::env!("CARGO_PKG_VERSION"));
+                println!("uname {}", core::env!("CARGO_PKG_VERSION"));
                 return Ok(0);
             }
             "--help" => {
@@ -58,6 +76,7 @@ fn main() -> Result<i32, Error> {
                 ));
             }
             x if x.starts_with("-") => {
+                eprintln!("{x}");
                 for c in (&x[1..]).chars() {
                     match c {
                         'a' => {
@@ -80,6 +99,12 @@ fn main() -> Result<i32, Error> {
                     }
                 }
             }
+            x => {
+                return Err(Error::new(
+                    ErrorKind::InvalidInput,
+                    alloc::format!("Unknown Argument {x}"),
+                ));
+            }
         }
     }
 
@@ -87,7 +112,13 @@ fn main() -> Result<i32, Error> {
         opts.push(PrintModes::KernelName)
     }
 
+    eprintln!("{opts:?}");
+
     let mut sys_info = Vec::with_capacity(4);
+    let mut kvendor_index = !0;
+    let mut osver_index = !0;
+    let mut cname_index = !0;
+    let mut arch_index = !0;
 
     let mut computer_name = String::new();
     let mut kernel_vendor = String::new();
@@ -96,7 +127,202 @@ fn main() -> Result<i32, Error> {
     if opts.contains(&PrintModes::KernelName)
         || opts.contains(&PrintModes::KVersion)
         || opts.contains(&PrintModes::KRelease)
-    {}
+    {
+        kvendor_index = sys_info.len();
+        sys_info.push(SysInfoRequest {
+            kernel_vendor: SysInfoRequestKernelVendor {
+                kvendor_name: KStrPtr {
+                    str_ptr: kernel_vendor.as_mut_ptr(),
+                    len: kernel_vendor.capacity(),
+                },
+                ..SysInfoRequestKernelVendor::INIT
+            },
+        });
+    }
+
+    if opts.contains(&PrintModes::Os) || opts.contains(&PrintModes::KVersion) {
+        osver_index = sys_info.len();
+        sys_info.push(SysInfoRequest {
+            os_version: SysInfoRequestOsVersion {
+                osvendor_name: KStrPtr {
+                    str_ptr: os_name.as_mut_ptr(),
+                    len: os_name.capacity(),
+                },
+                ..SysInfoRequestOsVersion::INIT
+            },
+        })
+    }
+
+    if opts.contains(&PrintModes::NodeName) {
+        cname_index = sys_info.len();
+        sys_info.push(SysInfoRequest {
+            computer_name: SysInfoRequestComputerName {
+                hostname: KStrPtr {
+                    str_ptr: computer_name.as_mut_ptr(),
+                    len: computer_name.capacity(),
+                },
+                ..SysInfoRequestComputerName::INIT
+            },
+        });
+    }
+
+    if opts.contains(&PrintModes::Machine)
+        || opts.contains(&PrintModes::Processor)
+        || opts.contains(&PrintModes::HardwarePlatform)
+    {
+        arch_index = sys_info.len();
+        sys_info.push(SysInfoRequest {
+            arch_info: SysInfoRequestArchInfo {
+                ..SysInfoRequestArchInfo::INIT
+            },
+        })
+    }
+
+    loop {
+        let res = unsafe { GetSystemInfo(KSlice::from_slice_mut(&mut sys_info)) };
+
+        if res == INSUFFICIENT_LENGTH || res == 0 {
+            let mut dirty = false;
+
+            if let Some(kvendor) = sys_info.get_mut(kvendor_index) {
+                let st = unsafe { &mut kvendor.kernel_vendor.kvendor_name };
+
+                if kernel_vendor.capacity() < st.len {
+                    kernel_vendor.reserve(st.len);
+                    st.str_ptr = kernel_vendor.as_mut_ptr();
+                    st.len = kernel_vendor.capacity();
+                    dirty = true;
+                } else {
+                    unsafe {
+                        kernel_vendor.as_mut_vec().set_len(st.len);
+                    }
+                }
+            }
+
+            if let Some(kvendor) = sys_info.get_mut(osver_index) {
+                let st = unsafe { &mut kvendor.os_version.osvendor_name };
+
+                if os_name.capacity() < st.len {
+                    os_name.reserve(st.len);
+                    st.str_ptr = os_name.as_mut_ptr();
+                    st.len = os_name.capacity();
+                    dirty = true;
+                } else {
+                    unsafe {
+                        os_name.as_mut_vec().set_len(st.len);
+                    }
+                }
+            }
+
+            if let Some(kvendor) = sys_info.get_mut(cname_index) {
+                let st = unsafe { &mut kvendor.computer_name.hostname };
+
+                if computer_name.capacity() < st.len {
+                    computer_name.reserve(st.len);
+                    st.str_ptr = computer_name.as_mut_ptr();
+                    st.len = computer_name.capacity();
+                    dirty = true;
+                } else {
+                    unsafe {
+                        computer_name.as_mut_vec().set_len(st.len);
+                    }
+                }
+            }
+
+            if !dirty {
+                break;
+            }
+        } else {
+            return Err(Error::from_raw_os_error(res));
+        }
+    }
+    let kvendor = sys_info.get(kvendor_index);
+    let mach = sys_info.get(arch_index);
+    let osinfo = sys_info.get(osver_index);
+
+    let kvendor = kvendor.map(|v| unsafe { &v.kernel_vendor });
+    let mach = mach.map(|v| unsafe { &v.arch_info });
+    let osinfo = osinfo.map(|v| unsafe { &v.os_version });
+    for info in opts {
+        match info {
+            PrintModes::KernelName => {
+                print!("{kernel_vendor} ");
+            }
+            PrintModes::NodeName => {
+                print!("{computer_name} ");
+            }
+            PrintModes::KRelease => {
+                let kvendor = kvendor.unwrap();
+                print!(
+                    "{}.{}-{} ",
+                    kvendor.kernel_major, kvendor.kernel_minor, kvendor.build_id
+                );
+            }
+            PrintModes::KVersion => {
+                let kvendor = kvendor.unwrap();
+                let osinfo = osinfo.unwrap();
+                print!(
+                    "{}.{} ({}.{}) ",
+                    osinfo.os_major, osinfo.os_minor, kvendor.kernel_major, kvendor.kernel_minor
+                );
+            }
+            PrintModes::Machine => {
+                let mach = mach.unwrap();
+                let arch_name = match mach.arch_type {
+                    ARCH_TYPE_X86_64 => "x86_64",
+                    ARCH_TYPE_X86_IA_32 => "i686",
+                    ARCH_TYPE_AARCH64 => "aarch64",
+                    ARCH_TYPE_ARM32 => "arm",
+                    ARCH_TYPE_RISCV32 => "riscv32",
+                    ARCH_TYPE_RISCV64 => "riscv64",
+                    ARCH_TYPE_CLEVER_ISA => "Clever-ISA",
+                    _ => "**UNKNOWN ARCH**!",
+                };
+
+                println!("{arch_name} ");
+            }
+            PrintModes::Processor => {
+                let mach = mach.unwrap();
+                let arch_ver = match mach.arch_type {
+                    ARCH_TYPE_X86_64 if mach.arch_version > 1 => {
+                        format!("x86_64v{}", mach.arch_version,)
+                    }
+                    ARCH_TYPE_X86_64 => "x86_64".to_string(),
+                    ARCH_TYPE_X86_IA_32 => format!("i{}86", mach.arch_version),
+                    ARCH_TYPE_AARCH64 => "aarch64".to_string(),
+                    ARCH_TYPE_ARM32 => "arm".to_string(),
+                    ARCH_TYPE_RISCV32 => "riscv32".to_string(),
+                    ARCH_TYPE_RISCV64 => "riscv64".to_string(),
+                    ARCH_TYPE_CLEVER_ISA => format!("Clever-ISA 1.{}", mach.arch_version),
+                    id => format!("Unknown Arch {id:#}"),
+                };
+
+                println!("{arch_ver} ");
+            }
+            PrintModes::HardwarePlatform => {
+                let mach = mach.unwrap();
+                let proc_name = match mach.arch_type {
+                    ARCH_TYPE_X86_64 if mach.arch_version > 1 => {
+                        format!("x86_64v{}", mach.arch_version,)
+                    }
+                    ARCH_TYPE_X86_64 => "x86_64".to_string(),
+                    ARCH_TYPE_X86_IA_32 => format!("i{}86", mach.arch_version),
+                    ARCH_TYPE_AARCH64 => "aarch64".to_string(),
+                    ARCH_TYPE_ARM32 => "arm".to_string(),
+                    ARCH_TYPE_RISCV32 => "riscv32".to_string(),
+                    ARCH_TYPE_RISCV64 => "riscv64".to_string(),
+                    ARCH_TYPE_CLEVER_ISA => format!("Clever-ISA 1.{}", mach.arch_version),
+                    id => format!("Unknown Arch {id:#}"),
+                };
+
+                println!("{proc_name} ");
+            }
+            PrintModes::Os => println!("{os_name} "),
+            _ => unreachable!(),
+        }
+    }
+
+    println!();
 
     Ok(0)
 }

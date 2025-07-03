@@ -79,3 +79,31 @@ impl<'a> SplitOnceOwned for Cow<'a, str> {
         }
     }
 }
+
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
+pub struct GetManyMutError(());
+
+pub fn get_many_mut<T, const I: usize>(
+    x: &mut [T],
+    elems: [usize; I],
+) -> Result<[Option<&mut T>; I], GetManyMutError> {
+    for (i_idx, i_val) in elems.iter().enumerate() {
+        if *i_val < x.len() {
+            for j_val in elems.iter().skip(i_idx + 1) {
+                if i_val == j_val {
+                    return Err(GetManyMutError(()));
+                }
+            }
+        }
+    }
+
+    let mut ret = [const { None }; I];
+    let len = x.len();
+    let arr = x as *mut [T] as *mut T;
+    for (elem, res) in core::iter::zip(elems, &mut ret) {
+        if elem < len {
+            *res = Some(unsafe { &mut *(arr.add(elem)) })
+        }
+    }
+    Ok(ret)
+}
