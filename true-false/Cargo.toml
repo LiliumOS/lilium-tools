@@ -1,0 +1,13 @@
+[package]
+name = "true-false"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+ministd.workspace = true
+
+[[bin]]
+name = "true"
+
+[[bin]]
+name = "false"
