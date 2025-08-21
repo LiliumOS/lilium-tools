@@ -68,7 +68,6 @@ pub unsafe fn rt_start<R: Termination>(
     envp: *mut *mut c_char,
     main: fn() -> R,
 ) -> i32 {
-    println!("{argc}");
     let _ = ARGS.set((argc as usize, argv));
     let _ = ENV.set(envp);
     if argc > 0 {
@@ -124,7 +123,7 @@ pub fn var(var: &str) -> Option<&'static str> {
     vars().find_map(|(key, val)| (key == var).then_some(val))
 }
 
-pub struct Args(*mut *mut c_char);
+pub struct Args(*mut *mut c_char, *mut *mut c_char);
 
 impl Iterator for Args {
     type Item = &'static str;
@@ -140,11 +139,18 @@ impl Iterator for Args {
         let bytes = cstr.to_bytes();
 
         let str = unsafe { core::str::from_utf8_unchecked(bytes) };
-
         Some(str)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = unsafe { self.1.offset_from_unsigned(self.0) };
+        (len, Some(len))
     }
 }
 
+impl ExactSizeIterator for Args {}
+
 pub fn args() -> Args {
-    Args(ARGS.get().copied().unwrap().1)
+    let (argc, argv) = ARGS.get().copied().unwrap();
+    Args(argv, unsafe { argv.add(argc) })
 }

@@ -56,6 +56,7 @@ fn main() -> Result<i32, Error> {
     let mut args = ministd::start::args();
 
     let prg_name = args.next().unwrap();
+    eprintln!("{prg_name}");
 
     let mut opts = Vec::with_capacity(PrintModes::__NModes as usize);
 
@@ -123,11 +124,10 @@ fn main() -> Result<i32, Error> {
     let mut computer_name = String::new();
     let mut kernel_vendor = String::new();
     let mut os_name = String::new();
+    let mut sys_label = String::new();
+    let mut sys_display_name = String::new();
 
-    if opts.contains(&PrintModes::KernelName)
-        || opts.contains(&PrintModes::KVersion)
-        || opts.contains(&PrintModes::KRelease)
-    {
+    if opts.contains(&PrintModes::KVersion) || opts.contains(&PrintModes::KRelease) {
         kvendor_index = sys_info.len();
         sys_info.push(SysInfoRequest {
             kernel_vendor: SysInfoRequestKernelVendor {
@@ -160,6 +160,14 @@ fn main() -> Result<i32, Error> {
                 hostname: KStrPtr {
                     str_ptr: computer_name.as_mut_ptr(),
                     len: computer_name.capacity(),
+                },
+                sys_label: KStrPtr {
+                    str_ptr: sys_label.as_mut_ptr(),
+                    len: sys_label.len(),
+                },
+                sys_display_name: KStrPtr {
+                    str_ptr: sys_display_name.as_mut_ptr(),
+                    len: sys_label.len(),
                 },
                 ..SysInfoRequestComputerName::INIT
             },
@@ -215,16 +223,33 @@ fn main() -> Result<i32, Error> {
             }
 
             if let Some(kvendor) = sys_info.get_mut(cname_index) {
-                let st = unsafe { &mut kvendor.computer_name.hostname };
+                let cname = unsafe { &mut kvendor.computer_name };
 
-                if computer_name.capacity() < st.len {
-                    computer_name.reserve(st.len);
-                    st.str_ptr = computer_name.as_mut_ptr();
-                    st.len = computer_name.capacity();
+                if computer_name.capacity() < cname.hostname.len
+                    || sys_label.capacity() < cname.sys_label.len
+                    || sys_display_name.capacity() < cname.sys_display_name.len
+                {
+                    computer_name.reserve(cname.hostname.len);
+                    cname.hostname.str_ptr = computer_name.as_mut_ptr();
+                    cname.hostname.len = computer_name.capacity();
+                    sys_label.reserve(cname.sys_label.len);
+                    cname.sys_label.str_ptr = sys_label.as_mut_ptr();
+                    cname.sys_label.len = sys_label.capacity();
+                    sys_display_name.reserve(cname.sys_display_name.len);
+                    cname.sys_display_name.str_ptr = sys_display_name.as_mut_ptr();
+                    cname.sys_display_name.len = sys_display_name.capacity();
                     dirty = true;
                 } else {
                     unsafe {
-                        computer_name.as_mut_vec().set_len(st.len);
+                        computer_name.as_mut_vec().set_len(cname.hostname.len);
+                    }
+                    unsafe {
+                        sys_label.as_mut_vec().set_len(cname.sys_label.len);
+                    }
+                    unsafe {
+                        sys_display_name
+                            .as_mut_vec()
+                            .set_len(cname.sys_display_name.len);
                     }
                 }
             }
@@ -246,7 +271,7 @@ fn main() -> Result<i32, Error> {
     for info in opts {
         match info {
             PrintModes::KernelName => {
-                print!("{kernel_vendor} ");
+                print!("Lilium ");
             }
             PrintModes::NodeName => {
                 print!("{computer_name} ");
@@ -254,8 +279,8 @@ fn main() -> Result<i32, Error> {
             PrintModes::KRelease => {
                 let kvendor = kvendor.unwrap();
                 print!(
-                    "{}.{}-{} ",
-                    kvendor.kernel_major, kvendor.kernel_minor, kvendor.build_id
+                    "{} {}.{} ",
+                    kernel_vendor, kvendor.kernel_major, kvendor.kernel_minor
                 );
             }
             PrintModes::KVersion => {
@@ -279,7 +304,7 @@ fn main() -> Result<i32, Error> {
                     _ => "**UNKNOWN ARCH**!",
                 };
 
-                println!("{arch_name} ");
+                print!("{arch_name} ");
             }
             PrintModes::Processor => {
                 let mach = mach.unwrap();
@@ -297,7 +322,7 @@ fn main() -> Result<i32, Error> {
                     id => format!("Unknown Arch {id:#}"),
                 };
 
-                println!("{arch_ver} ");
+                print!("{arch_ver} ");
             }
             PrintModes::HardwarePlatform => {
                 let mach = mach.unwrap();
@@ -315,9 +340,9 @@ fn main() -> Result<i32, Error> {
                     id => format!("Unknown Arch {id:#}"),
                 };
 
-                println!("{proc_name} ");
+                print!("{proc_name} ");
             }
-            PrintModes::Os => println!("{os_name} "),
+            PrintModes::Os => print!("{os_name} "),
             _ => unreachable!(),
         }
     }

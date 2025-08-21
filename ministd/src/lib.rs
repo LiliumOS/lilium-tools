@@ -20,7 +20,12 @@ pub mod system;
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     use core::fmt::Write;
-    let _ = writeln!(stderr(), "Panicked at {}", info.message());
+    if let Some(loc) = info.location() {
+        let _ = writeln!(stderr(), "Panicked at {loc}: {}", info.message());
+    } else {
+        let _ = writeln!(stderr(), "Panicked: {}", info.message());
+    }
+
     unsafe {
         UnmanagedException(&ExceptionStatusInfo {
             except_code: parse_uuid("4c0c6658-59ae-5675-90c3-ffcc0a7219ad"),
