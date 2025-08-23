@@ -9,7 +9,7 @@ pub fn help_version(name: &str, code: &str) {
     for arg in args {
         match arg {
             "--version" => {
-                println!("{name} v{}", core::env!("CARGO_PKG_VERSION"));
+                println!("{name} (lilium-tools) v{}", core::env!("CARGO_PKG_VERSION"));
                 ministd::exit(0)
             }
             "--help" => {

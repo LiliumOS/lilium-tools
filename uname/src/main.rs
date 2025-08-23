@@ -56,14 +56,13 @@ fn main() -> Result<i32, Error> {
     let mut args = ministd::start::args();
 
     let prg_name = args.next().unwrap();
-    eprintln!("{prg_name}");
 
     let mut opts = Vec::with_capacity(PrintModes::__NModes as usize);
 
     for arg in args {
         match arg {
             "--version" => {
-                println!("uname {}", core::env!("CARGO_PKG_VERSION"));
+                println!("uname (lilium-tools) {}", core::env!("CARGO_PKG_VERSION"));
                 return Ok(0);
             }
             "--help" => {
@@ -77,7 +76,6 @@ fn main() -> Result<i32, Error> {
                 ));
             }
             x if x.starts_with("-") => {
-                eprintln!("{x}");
                 for c in (&x[1..]).chars() {
                     match c {
                         'a' => {
@@ -113,19 +111,17 @@ fn main() -> Result<i32, Error> {
         opts.push(PrintModes::KernelName)
     }
 
-    eprintln!("{opts:?}");
-
     let mut sys_info = Vec::with_capacity(4);
     let mut kvendor_index = !0;
     let mut osver_index = !0;
     let mut cname_index = !0;
     let mut arch_index = !0;
 
-    let mut computer_name = String::new();
-    let mut kernel_vendor = String::new();
-    let mut os_name = String::new();
-    let mut sys_label = String::new();
-    let mut sys_display_name = String::new();
+    let mut computer_name = String::with_capacity(32);
+    let mut kernel_vendor = String::with_capacity(32);
+    let mut os_name = String::with_capacity(32);
+    let mut sys_label = String::with_capacity(32);
+    let mut sys_display_name = String::with_capacity(32);
 
     if opts.contains(&PrintModes::KVersion) || opts.contains(&PrintModes::KRelease) {
         kvendor_index = sys_info.len();
@@ -140,7 +136,7 @@ fn main() -> Result<i32, Error> {
         });
     }
 
-    if opts.contains(&PrintModes::Os) || opts.contains(&PrintModes::KVersion) {
+    if opts.contains(&PrintModes::Os) || opts.contains(&PrintModes::KRelease) {
         osver_index = sys_info.len();
         sys_info.push(SysInfoRequest {
             os_version: SysInfoRequestOsVersion {
@@ -278,17 +274,17 @@ fn main() -> Result<i32, Error> {
             }
             PrintModes::KRelease => {
                 let kvendor = kvendor.unwrap();
+                let osinfo = osinfo.unwrap();
                 print!(
-                    "{} {}.{} ",
-                    kernel_vendor, kvendor.kernel_major, kvendor.kernel_minor
+                    "{os_name} {}.{} ({kernel_vendor} {}.{}) ",
+                    osinfo.os_major, osinfo.os_minor, kvendor.kernel_major, kvendor.kernel_minor
                 );
             }
             PrintModes::KVersion => {
                 let kvendor = kvendor.unwrap();
-                let osinfo = osinfo.unwrap();
                 print!(
-                    "{}.{} ({}.{}) ",
-                    osinfo.os_major, osinfo.os_minor, kvendor.kernel_major, kvendor.kernel_minor
+                    "{kernel_vendor} {}.{}-{} ",
+                    kvendor.kernel_major, kvendor.kernel_minor, kvendor.build_id
                 );
             }
             PrintModes::Machine => {

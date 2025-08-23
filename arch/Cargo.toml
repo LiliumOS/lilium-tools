@@ -1,0 +1,8 @@
+[package]
+name = "arch"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+ministd.workspace = true
+lilium-sys.workspace = true

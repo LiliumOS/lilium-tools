@@ -1,5 +1,5 @@
 [workspace]
-members = ["uname", "minish", "ministd", "true-false"]
+members = ["uname", "minish", "ministd", "true-false", "ls", "arch"]
 resolver = "3"
 
 [workspace.package]
